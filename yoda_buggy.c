@@ -19,12 +19,22 @@ static ssize_t yoda_read_buggy(struct file *file, char __user *buf,
 			       size_t count, loff_t *offset)
 {
 	const char *yoda_string = "Completely fixed, this string is.\n";
+	const size_t yoda_size = strlen(yoda_string);
 
 	pr_info("user wants to read %zd bytes at %lld\n", count, *offset);
 
-	if (copy_to_user(buf, yoda_string, strlen(yoda_string)))
+	if (*offset >= yoda_size)
+		return 0;
+
+	if (count > yoda_size - *offset)
+		count = yoda_size - *offset;
+
+	if (copy_to_user(buf, yoda_string + *offset, count))
 		return -EFAULT;
-	return strlen(yoda_string);
+
+	*offset += count;
+
+	return count;
 }
 
 static const struct file_operations fops = {
