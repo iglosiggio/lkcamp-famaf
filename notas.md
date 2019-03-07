@@ -1,16 +1,16 @@
 # Cronología
 
-1974 - Paper de Unix
-1978 - Libro K&R C
-1983 - Unix System V
-1989 - GPLv1 (Libertades básicas, licencias virales, etc)
-1991 - Linux
-1992 - Linux 0.12 GPL
-2001 - Linux 2.4 (“Linux is a Cancer” - Microsoft CEO)
-2005 - Git - The stupid content tracker
-2008 - Github
-2018 - Microsoft compra Github
-2019 - Linux 5.0
+* 1974 - Paper de Unix
+* 1978 - Libro K&R C
+* 1983 - Unix System V
+* 1989 - GPLv1 (Libertades básicas, licencias virales, etc)
+* 1991 - Linux
+* 1992 - Linux 0.12 GPL
+* 2001 - Linux 2.4 (“Linux is a Cancer” - Microsoft CEO)
+* 2005 - Git - The stupid content tracker
+* 2008 - Github
+* 2018 - Microsoft compra Github
+* 2019 - Linux 5.0
 
 # ¿Qué es un kernel?
 
@@ -181,11 +181,11 @@ comparación:
 ```
 add/remove: 0/5 grow/shrink: 0/0 up/down: 0/-451 (-451)
 Function                                     old     new   delta
-\_eil\_addr\_\__x64\_sys\_reboot                    16       -     -16
-\_eil\_addr\_\_\_ia32\_sys\_reboot                   16       -     -16
-\_\_ia32\_sys\_reboot                             20       -     -20
-\_\_x64\_sys\_reboot                              21       -     -21
-\_\_do\_sys\_reboot                              378       -    -378
+_eil_addr___x64_sys_reboot                    16       -     -16
+_eil_addr___ia32_sys_reboot                   16       -     -16
+__ia32_sys_reboot                             20       -     -20
+__x64_sys_reboot                              21       -     -21
+__do_sys_reboot                              378       -    -378
 Total: Before=13351720, After=13351269, chg -0.00%
 ```
 
@@ -224,11 +224,21 @@ Los `char devices` reciben las syscalls normales pero no están buffereadas.
 # Ejercicios haciendo módulos
 _Nota:_ Auto-registración de char devices: **enviado por email**
 
-1. Hacer el driver de ejemplo `hello_world` _in-tree_
-2. Identificar los bugs del driver `yoda_buggy` e intentar fixearlos.
-**tomar notas**
-3. ¿Qué pasa cuando se llama a `write(2)` sobre un nodo de `yoda_buggy`? ¿Dónde
-   está ese código?
+## Hacer el driver de ejemplo `hello_world` _in-tree_
+
+Se puede encontrar el commit correspondiente en la rama
+`linux/iglosiggio/hello-world` de este repo. El ejercicio trata sobre reconocer
+los patrones utilizados para la construcción de módulos e intentar replicarlos
+integrando el módulo de juguete.
+
+## Identificar los bugs del driver `yoda_buggy` e intentar fixearlos.
+
+**TODO:** tomar notas sobre tips y ayudas para completar el ejercicio.
+
+
+## ¿Qué pasa cuando se llama a `write(2)` sobre un nodo de `yoda_buggy`?  ¿Dónde está ese código?
+
+Busquemos la syscall de read:
 
 ```
 iglosiggio@mega-tmob ~/e/c/linux> git grep SYSCALL_DEFINE3\(read
@@ -238,3 +248,68 @@ fs/read_write.c:COMPAT_SYSCALL_DEFINE3(readv, compat_ulong_t, fd,
 fs/stat.c:SYSCALL_DEFINE3(readlink, const char __user *, path, char __user *, buf,
 mm/readahead.c:SYSCALL_DEFINE3(readahead, int, fd, loff_t, offset, size_t, count)
 ```
+
+¿Qué corno hace read?
+
+```
+ssize_t ksys_read(unsigned int fd, char __user *buf, size_t count)
+{
+        struct fd f = fdget_pos(fd);
+        ssize_t ret = -EBADF;
+
+        if (f.file) {
+                loff_t pos = file_pos_read(f.file);
+                ret = vfs_read(f.file, buf, count, &pos);
+                if (ret >= 0)
+                        file_pos_write(f.file, pos);
+                fdput_pos(f);
+        }
+        return ret;
+}
+
+SYSCALL_DEFINE3(read, unsigned int, fd, char __user *, buf, size_t, count)
+{
+        return ksys_read(fd, buf, count);
+}
+```
+
+`fdget_pos` consigue el fichero pedio, si no existe se devuelve `EBADF` (Bad
+file descriptor), el resto del código se encarga de actualizar la posición
+y el fichero de acuerdo a los cambios de genere `vfs_read`.
+
+Entonces ¿Qué va hace `vfs_read`?
+
+1. Chequea que el archivo se haya abierto de forma que se pueda leer
+   (`FMODE_READ`), en caso contrario devuelve `EBADF` (Bad file descriptor).
+2. Chequea que el archivo tenga un método para leerlo (podemos tener archivos
+   sólamente escribibles), si esto no ocurre devuelve `EINVAL` (Invalid
+   Argument).
+3. Chequea que el puntero pasado como buffer sea válido, caso contrario
+   devuelve `EFAULT` (Bad address).
+4. Chequea que el file descriptor tenga los permisos correspondientes y si todo
+   sale bien corre `__vfs_read` y las notificaciones correspondientes
+   (fsnotify, io del proceso, etc).
+
+Bueno, una capa menos, ahora por `__vfs_read`, por suerte se explica (casi)
+sólo:
+
+```
+if (file->f_op->read)
+        return file->f_op->read(file, buf, count, pos);
+else if (file->f_op->read_iter)
+        return new_sync_read(file, buf, count, pos);
+else
+        return -EINVAL;
+```
+
+Si las operaciones registradas de ese archivo tienen a `read` entonces se
+utiliza para completar la operación, si tienen a `read_iter` ese es elegido y
+si no ocurre ninguna de las dos entonces ese archivo no es legible y se
+devuelve `EINVAL` (Invalid argument).
+
+En nuestro driver de jugete `yoda_buggy` la implementación exponía un read, y
+así es cómo se llevaba a cabo la magia correspondiente.
+
+## Descargar módulos del kernel
+
+**TODO:** Queda para la próxima clase del curso.
