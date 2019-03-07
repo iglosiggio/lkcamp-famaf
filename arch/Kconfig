@@ -16,6 +16,7 @@ config CRASH_CORE
 
 config KEXEC_CORE
 	select CRASH_CORE
+	depends on REBOOT
 	bool
 
 config HAVE_IMA_KEXEC

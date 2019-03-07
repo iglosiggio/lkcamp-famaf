@@ -297,6 +297,7 @@ EXPORT_SYMBOL_GPL(kernel_power_off);
 
 DEFINE_MUTEX(system_transition_mutex);
 
+#ifdef CONFIG_REBOOT
 /*
  * Reboot system call: for obvious reasons only root may call it,
  * and even root needs to set up some magic numbers in the registers
@@ -393,6 +394,7 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 	mutex_unlock(&system_transition_mutex);
 	return ret;
 }
+#endif /* CONFIG_REBOOT */
 
 static void deferred_cad(struct work_struct *dummy)
 {

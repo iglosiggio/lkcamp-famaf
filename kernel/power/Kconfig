@@ -33,7 +33,7 @@ config HIBERNATE_CALLBACKS
 
 config HIBERNATION
 	bool "Hibernation (aka 'suspend to disk')"
-	depends on SWAP && ARCH_HIBERNATION_POSSIBLE
+	depends on SWAP && ARCH_HIBERNATION_POSSIBLE && REBOOT
 	select HIBERNATE_CALLBACKS
 	select LZO_COMPRESS
 	select LZO_DECOMPRESS
@@ -313,3 +313,14 @@ config ENERGY_MODEL
 	  The exact usage of the energy model is subsystem-dependent.
 
 	  If in doubt, say N.
+
+config REBOOT
+	bool "Enables the reboot() system call" if EXPERT
+	default y
+	help
+	  This option enables support for the reboot syscall.
+
+	  If you say N here, only kernel code would be able to execute reboot
+	  and halt code.
+
+	  If unsure, say Y here.

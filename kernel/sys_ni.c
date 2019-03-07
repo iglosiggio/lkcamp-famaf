@@ -166,6 +166,9 @@ COND_SYSCALL(syslog);
 
 /* kernel/signal.c */
 
+/* kernel/reboot.c */
+COND_SYSCALL(reboot);
+
 /* kernel/sys.c */
 COND_SYSCALL(setregid);
 COND_SYSCALL(setgid);
