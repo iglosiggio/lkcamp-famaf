@@ -238,6 +238,10 @@ integrando el módulo de juguete.
 
 ## ¿Qué pasa cuando se llama a `write(2)` sobre un nodo de `yoda_buggy`?  ¿Dónde está ese código?
 
+**Nota:** Soy un tarado y escribí que pasa cuando se hace `read(2)`, si bien es
+similar lo que pasa (gran parte del código es un calco letra a letra) debería
+actualizar los cachos de código y el texto de acá abajo.
+
 Busquemos la syscall de read:
 
 ```
