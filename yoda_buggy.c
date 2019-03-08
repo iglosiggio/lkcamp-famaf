@@ -23,18 +23,8 @@ static ssize_t yoda_read_buggy(struct file *file, char __user *buf,
 
 	pr_info("user wants to read %zd bytes at %lld\n", count, *offset);
 
-	if (*offset >= yoda_size)
-		return 0;
-
-	if (count > yoda_size - *offset)
-		count = yoda_size - *offset;
-
-	if (copy_to_user(buf, yoda_string + *offset, count))
-		return -EFAULT;
-
-	*offset += count;
-
-	return count;
+	return simple_read_from_buffer(buf, count, offset, yoda_string,
+	                               yoda_size);
 }
 
 static const struct file_operations fops = {
