@@ -60,15 +60,17 @@ static ssize_t fifo_read(struct file *file, char __user *buf,
 		entry_off -= entry->size;
 	}
 
+	/*
+	 * We control the offset, if it moved past our allocated memory then it
+	 * has to be located right at the start of the 'next block'.
+	 *
+	 * If this is the case then we signal the calling task to retry the
+	 * read operation and pray for a correct interpretation of the error.
+	 */
 	if (!found)
-		/*
-		 * EFAULT is a very-very generic and completely unhelpful
-		 * error code. Come on, be nicer to the poor souls that
-		 * will use this driver!
-		 */
-		return -EFAULT;
+		return -EAGAIN;
 
-	to_read = entry->size - entry_off;
+	to_read = min(count, (size_t)(entry->size - entry_off));
 
 	if (copy_to_user(buf, entry->buffer + entry_off, to_read))
 		return -EFAULT;
@@ -80,17 +82,24 @@ static ssize_t fifo_read(struct file *file, char __user *buf,
 static ssize_t fifo_write(struct file *file, const char __user *buf,
 			  size_t count, loff_t *offset)
 {
+	struct list_head *list;
 	struct fifo_entry *entry;
+	loff_t end_offset = count;
+	loff_t block_offset = 0;
 	int ret;
 
 	pr_info("user wants to write %zd bytes at %lld\n", count, *offset);
 
 	/*
-	 * Current semantics doesn't really accept writing
-	 * at a non-zero offset. Can you fix it?
+	 * If we want to write to the pipe then our offset needs to be advanced
+	 * to the end of our allocated blocks.
 	 */
-	if (*offset > 0)
-		return -EFAULT;
+	list_for_each(list, &fifo_list) {
+		entry = (struct fifo_entry *)list;
+		end_offset += entry->size;
+	}
+
+	pr_info("going to effectively write them to %lld\n", end_offset - count);
 
 	entry = kzalloc(sizeof(struct fifo_entry), GFP_KERNEL);
 	if (!entry)
@@ -99,14 +108,24 @@ static ssize_t fifo_write(struct file *file, const char __user *buf,
 	/* Allocate a buffer to accommodate the user write request */
 	entry->size = count;
 	entry->buffer = kzalloc(count, GFP_KERNEL);
-	if (!entry->buffer)
+	if (!entry->buffer) {
+		kzfree(entry);
 		return -ENOMEM;
+	}
 
 	ret = simple_write_to_buffer(entry->buffer, entry->size,
-				offset, buf, count);
-	if (ret < 0)
+				&block_offset, buf, count);
+	if (ret < 0) {
+		kzfree(entry->buffer);
+		kzfree(entry);
 		return ret;
+	}
+
+	/*
+	 * If everything went right then we update our list and move our offset
+	 */
 	list_add_tail(&entry->list, &fifo_list);
+	*offset = end_offset;
 	return ret;
 }
 
