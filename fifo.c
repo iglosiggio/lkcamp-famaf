@@ -148,7 +148,21 @@ static int fifo_init(void)
 
 static void fifo_exit(void)
 {
+	struct fifo_entry *entry;
+	struct list_head *list, tmp;
+	list_for_each_safe(list, tmp, &fifo_list) {
+		entry = (struct fifo_entry*)list;
+		list_del(entry);
+
+		/*
+		 * What happens if someone tries to write 0 bytes?
+		 * Can we always free our list?
+		 */
+		kzfree(entry->buffer);
+		kzfree(entry);
+	}
 	return unregister_chrdev(major, KBUILD_MODNAME);
+
 }
 
 module_init(fifo_init);
