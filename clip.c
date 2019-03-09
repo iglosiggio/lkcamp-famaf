@@ -34,11 +34,24 @@ static ssize_t clip_read(struct file *file, char __user *buf,
 static ssize_t clip_write(struct file *file, const char __user *buf,
 			  size_t count, loff_t *offset)
 {
+	void* new_buffer;
+
 	pr_info("user wants to write %ld bytes at %lld\n", count, *offset);
 
-	/* Allocate a buffer to accomodate the user write request */
-	clip->buffer = kmalloc(count, GFP_KERNEL);
-	clip->count = count;
+	/* Rellocate a buffer to accomodate the user write request */
+	new_buffer = krealloc(clip->buffer, *offset + count, GFP_KERNEL);
+
+	/*
+	 * What's the appropiate way to react to this error?
+	 * Should we free the allocated buffer?
+	 * Should we zero the allocated buffer?
+	 * Should we let the old and still allocated buffer intact?
+	 */
+	if (!new_buffer)
+		return -ENOMEM;
+
+	clip->buffer = new_buffer;
+	clip->count = *offset + count;
 
 	return simple_write_to_buffer(clip->buffer, clip->count, offset,
 				      buf, count);
@@ -75,6 +88,8 @@ static int clip_init(void)
 
 static void clip_exit(void)
 {
+	if (clip->buffer)
+		kfree(clip->buffer);
 	kfree(clip);
 
 	/*
