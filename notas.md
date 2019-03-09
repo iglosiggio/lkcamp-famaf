@@ -314,6 +314,87 @@ devuelve `EINVAL` (Invalid argument).
 En nuestro driver de jugete `yoda_buggy` la implementación exponía un read, y
 así es cómo se llevaba a cabo la magia correspondiente.
 
-## Descargar módulos del kernel
+## Descargar (unload) módulos del kernel
 
-**TODO:** Queda para la próxima clase del curso.
+**TODO:** Armar las notas correspondientes.
+
+## Evitando duplicar código
+
+**TODO:** writeup
+
+## Diseño de APIs
+
+El ejercicio consiste en leer y reflexionar sobre el
+[manifiesto](http://sweng.the-davies.net/Home/rustys-api-design-manifesto) de
+diseño de APIs de Rusty Russell.
+
+## Identificar los bugs del driver `fifo` e intentar fixearlos
+
+**TODO:** writeup
+
+## Identificar los bugs del driver `clip` e inentar fixearlos
+
+**TODO:** writeup
+
+## Investigar e utilzar kmemleak
+
+**TODO:** hacer
+
+## ¿Dónde está el `struct device` de los dispositivos RTC? ¿Dónde está el `struct device_driver` que le corresponde?
+
+Lo primero que podemos hacer es buscar dentro de las declaraciones de
+`struct device` las que pertenezcan a algún archivo con _rtc_ en la ruta.
+También podríamos ser más mandados y suponer que existe una estructura llamada
+`struct rtc_device` que empiece con un `struct device` (es un vocablo común
+para pseudo-herencia en C).
+
+```
+iglosiggio@mega-tmob ~/e/c/linux> git grepi -A4 'struct rtc_device {'
+include/linux/rtc.h:struct rtc_device {
+include/linux/rtc.h-    struct device dev;
+include/linux/rtc.h-    struct module *owner;
+include/linux/rtc.h-
+include/linux/rtc.h-    int id;
+```
+
+¡Exactamente lo que buscamos! ¿Nuestro `struct device_driver` se llamará
+`rtc_device_driver`? (Spoiler: tristemente no).
+
+Una vuelta por `linux/rtc/` nos muestra que cada dispositivo declara un
+`struct platform_driver`. Si buscamos la declaración del mismo vemos que
+internamente tiene al `struct device_driver` como field.
+
+```
+iglosiggio@mega-tmob ~/e/c/linux> git grep -A9 'struct platform_driver {' include/
+include/linux/platform_device.h:struct platform_driver {
+include/linux/platform_device.h-        int (*probe)(struct platform_device *);
+include/linux/platform_device.h-        int (*remove)(struct platform_device *);
+include/linux/platform_device.h-        void (*shutdown)(struct platform_device *);
+include/linux/platform_device.h-        int (*suspend)(struct platform_device *, pm_message_t state);
+include/linux/platform_device.h-        int (*resume)(struct platform_device *);
+include/linux/platform_device.h-        struct device_driver driver;
+include/linux/platform_device.h-        const struct platform_device_id *id_table;
+include/linux/platform_device.h-        bool prevent_deferred_probe;
+include/linux/platform_device.h-};
+```
+
+En `Documentation/driver-model/driver.txt` hay más información sobre estas
+estructuras que engloban al driver:
+
+>Most drivers will not be able to be converted completely to the new
+>model because the bus they belong to has a bus-specific structure with
+>bus-specific fields that cannot be generalized.
+
+>Bus-specific drivers should include a generic struct device_driver in
+>the definition of the bus-specific driver.
+
+## Agregar un parámetro a `yoda_buggy` que cree un número de dispositivos configurable a la hora de insmodearlo
+
+**TODO:** hacer
+
+## Para seguir interiorizándose con el kernel
+
+* Linux Kernel in a Nutshell
+* lspci
+* Linux Kernel Development - Robert Love
+* driver: video/staging
